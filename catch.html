@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="接住">
+<meta name="theme-color" content="#F5F2ED">
+<meta name="mobile-web-app-capable" content="yes">
+<title>接住</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  body {
+    font-family: -apple-system, 'PingFang SC', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: #F5F2ED;
+    color: #3A3632;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom) 24px;
+  }
+
+  .screen {
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
+    height: 100%;
+    padding-top: 15vh;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .screen.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  .screen.fading {
+    opacity: 0;
+  }
+
+  /* Screen 1: Input */
+  .prompt {
+    font-size: 18px;
+    line-height: 1.6;
+    color: #6B6560;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .thought-input {
+    width: 100%;
+    min-height: 80px;
+    max-height: 160px;
+    border: none;
+    border-bottom: 2px solid #C4BDB3;
+    background: transparent;
+    font-family: inherit;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #3A3632;
+    resize: none;
+    outline: none;
+    padding: 8px 0;
+    transition: border-color 0.3s;
+  }
+
+  .thought-input:focus {
+    border-color: #8B9E8B;
+  }
+
+  .thought-input::placeholder {
+    color: #C4BDB3;
+  }
+
+  .submit-btn {
+    align-self: flex-end;
+    margin-top: 16px;
+    padding: 10px 28px;
+    background: #8B9E8B;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.3s, transform 0.15s;
+    pointer-events: none;
+  }
+
+  .submit-btn.ready {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .submit-btn:active {
+    transform: scale(0.96);
+  }
+
+  /* Screen 2: Response */
+  .echo {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #9B9590;
+    margin-bottom: 6px;
+    font-style: italic;
+  }
+
+  .echo-text {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #6B6560;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #E0DBD5;
+  }
+
+  .response-prompt {
+    font-size: 18px;
+    line-height: 1.6;
+    color: #6B6560;
+    margin-bottom: 16px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .chip {
+    padding: 8px 16px;
+    background: #EDEAE5;
+    border: 1.5px solid #D8D3CC;
+    border-radius: 18px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #5A5550;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+
+  .chip:active, .chip.selected {
+    background: #8B9E8B;
+    border-color: #8B9E8B;
+    color: #fff;
+  }
+
+  .response-input {
+    width: 100%;
+    min-height: 50px;
+    max-height: 100px;
+    border: none;
+    border-bottom: 2px solid #C4BDB3;
+    background: transparent;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #3A3632;
+    resize: none;
+    outline: none;
+    padding: 8px 0;
+    transition: border-color 0.3s;
+  }
+
+  .response-input:focus {
+    border-color: #8B9E8B;
+  }
+
+  .response-input::placeholder {
+    color: #C4BDB3;
+  }
+
+  .save-btn {
+    align-self: flex-end;
+    margin-top: 16px;
+    padding: 10px 28px;
+    background: #8B9E8B;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.3s, transform 0.15s;
+    pointer-events: none;
+  }
+
+  .save-btn.ready {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .save-btn:active {
+    transform: scale(0.96);
+  }
+
+  /* Screen 3: Saved confirmation */
+  .saved-screen {
+    align-items: center;
+    justify-content: flex-start;
+    text-align: center;
+  }
+
+  .saved-voice {
+    font-size: 15px;
+    color: #9B9590;
+    margin-bottom: 8px;
+  }
+
+  .saved-thought {
+    font-size: 16px;
+    color: #6B6560;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .saved-divider {
+    width: 40px;
+    height: 1px;
+    background: #D8D3CC;
+    margin-bottom: 24px;
+  }
+
+  .saved-reply {
+    font-size: 18px;
+    color: #3A3632;
+    line-height: 1.7;
+    margin-bottom: 40px;
+    font-weight: 500;
+  }
+
+  .saved-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .again-btn {
+    padding: 10px 24px;
+    background: #8B9E8B;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+
+  .again-btn:active {
+    transform: scale(0.96);
+  }
+
+  /* Screen 4: History */
+  .history-screen {
+    padding-top: 8vh;
+  }
+
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .history-title {
+    font-size: 18px;
+    color: #6B6560;
+  }
+
+  .history-back {
+    padding: 8px 16px;
+    background: none;
+    border: 1.5px solid #D8D3CC;
+    border-radius: 16px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #6B6560;
+    cursor: pointer;
+  }
+
+  .history-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 40px;
+  }
+
+  .history-entry {
+    padding: 16px 0;
+    border-bottom: 1px solid #E8E4DF;
+  }
+
+  .history-date {
+    font-size: 12px;
+    color: #B0AAA3;
+    margin-bottom: 8px;
+  }
+
+  .history-thought {
+    font-size: 14px;
+    color: #9B9590;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .history-response {
+    font-size: 15px;
+    color: #3A3632;
+    line-height: 1.5;
+  }
+
+  .history-empty {
+    color: #B0AAA3;
+    font-size: 15px;
+    text-align: center;
+    margin-top: 40px;
+  }
+
+  .history-clear {
+    display: block;
+    margin: 24px auto 0;
+    padding: 8px 20px;
+    background: none;
+    border: 1px solid #D8D3CC;
+    border-radius: 16px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #B0AAA3;
+    cursor: pointer;
+  }
+
+  /* Nav */
+  .nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    padding: 16px 0 calc(16px + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, #F5F2ED 40%);
+  }
+
+  .nav-btn {
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 13px;
+    color: #B0AAA3;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+  }
+
+  .nav-btn:active {
+    color: #8B9E8B;
+  }
+</style>
+</head>
+<body>
+
+<!-- Screen 1: Write the anxious thought -->
+<div id="screen1" class="screen active">
+  <div class="prompt">那个声音在说什么？</div>
+  <textarea id="thoughtInput" class="thought-input" placeholder="写下来……" rows="3"></textarea>
+  <button id="thoughtSubmit" class="submit-btn" onclick="goToResponse()">写好了</button>
+</div>
+
+<!-- Screen 2: Respond to yourself -->
+<div id="screen2" class="screen">
+  <div class="echo">它在说——</div>
+  <div id="echoText" class="echo-text"></div>
+  <div class="response-prompt">你想对自己说什么？</div>
+  <div class="chips">
+    <button class="chip" onclick="pickChip(this)">我也不想的。</button>
+    <button class="chip" onclick="pickChip(this)">这不是我的错。</button>
+    <button class="chip" onclick="pickChip(this)">我已经做得很好了。</button>
+    <button class="chip" onclick="pickChip(this)">有些事不是我能控制的。</button>
+  </div>
+  <textarea id="responseInput" class="response-input" placeholder="或者，写你自己的话……" rows="2"></textarea>
+  <button id="saveBtn" class="save-btn" onclick="saveEntry()">接住了</button>
+</div>
+
+<!-- Screen 3: Confirmation -->
+<div id="screen3" class="screen saved-screen">
+  <div class="saved-voice">那个声音说——</div>
+  <div id="savedThought" class="saved-thought"></div>
+  <div class="saved-divider"></div>
+  <div id="savedReply" class="saved-reply"></div>
+  <div class="saved-actions">
+    <button class="again-btn" onclick="reset()">好了</button>
+  </div>
+</div>
+
+<!-- Screen 4: History -->
+<div id="screen4" class="screen history-screen">
+  <div class="history-header">
+    <div class="history-title">记录</div>
+    <button class="history-back" onclick="showScreen('screen1')">返回</button>
+  </div>
+  <div id="historyList" class="history-list"></div>
+</div>
+
+<!-- Navigation -->
+<div class="nav" id="nav">
+  <button class="nav-btn" onclick="showHistory()">看看记录</button>
+</div>
+
+<script>
+  let currentThought = '';
+  let currentResponse = '';
+
+  const thoughtInput = document.getElementById('thoughtInput');
+  const responseInput = document.getElementById('responseInput');
+  const thoughtSubmit = document.getElementById('thoughtSubmit');
+  const saveBtn = document.getElementById('saveBtn');
+
+  // Auto-resize textareas
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  thoughtInput.addEventListener('input', function() {
+    autoResize(this);
+    thoughtSubmit.classList.toggle('ready', this.value.trim().length > 0);
+  });
+
+  responseInput.addEventListener('input', function() {
+    autoResize(this);
+    // Deselect chips if typing custom
+    if (this.value.trim().length > 0) {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+    }
+    updateSaveBtn();
+  });
+
+  function updateSaveBtn() {
+    const hasChip = document.querySelector('.chip.selected');
+    const hasText = responseInput.value.trim().length > 0;
+    saveBtn.classList.toggle('ready', hasChip || hasText);
+  }
+
+  function pickChip(el) {
+    // Toggle this chip
+    const wasSelected = el.classList.contains('selected');
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+    if (!wasSelected) {
+      el.classList.add('selected');
+      responseInput.value = '';
+      autoResize(responseInput);
+    }
+    updateSaveBtn();
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => {
+      s.classList.add('fading');
+      setTimeout(() => {
+        s.classList.remove('active', 'fading');
+      }, 300);
+    });
+
+    setTimeout(() => {
+      const target = document.getElementById(id);
+      target.classList.add('active');
+
+      // Show/hide nav
+      document.getElementById('nav').style.display =
+        (id === 'screen1' || id === 'screen3') ? 'flex' : 'none';
+    }, 320);
+  }
+
+  function goToResponse() {
+    currentThought = thoughtInput.value.trim();
+    if (!currentThought) return;
+
+    document.getElementById('echoText').textContent = currentThought;
+
+    // Reset response state
+    responseInput.value = '';
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+    saveBtn.classList.remove('ready');
+
+    showScreen('screen2');
+  }
+
+  function saveEntry() {
+    const selectedChip = document.querySelector('.chip.selected');
+    currentResponse = selectedChip
+      ? selectedChip.textContent
+      : responseInput.value.trim();
+
+    if (!currentResponse) return;
+
+    // Save to localStorage
+    const entries = JSON.parse(localStorage.getItem('catch_entries') || '[]');
+    entries.unshift({
+      thought: currentThought,
+      response: currentResponse,
+      time: new Date().toISOString()
+    });
+
+    // Keep max 200 entries
+    if (entries.length > 200) entries.pop();
+    localStorage.setItem('catch_entries', JSON.stringify(entries));
+
+    // Show confirmation
+    document.getElementById('savedThought').textContent = currentThought;
+    document.getElementById('savedReply').textContent = currentResponse;
+
+    showScreen('screen3');
+  }
+
+  function reset() {
+    thoughtInput.value = '';
+    responseInput.value = '';
+    thoughtSubmit.classList.remove('ready');
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+    autoResize(thoughtInput);
+    showScreen('screen1');
+    setTimeout(() => thoughtInput.focus(), 400);
+  }
+
+  function showHistory() {
+    const entries = JSON.parse(localStorage.getItem('catch_entries') || '[]');
+    const list = document.getElementById('historyList');
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="history-empty">还没有记录</div>';
+    } else {
+      let html = '';
+      entries.forEach(entry => {
+        const d = new Date(entry.time);
+        const month = d.getMonth() + 1;
+        const day = d.getDate();
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        const dateStr = month + '月' + day + '日 ' + hour + ':' + min;
+
+        html += '<div class="history-entry">'
+          + '<div class="history-date">' + dateStr + '</div>'
+          + '<div class="history-thought">' + escapeHtml(entry.thought) + '</div>'
+          + '<div class="history-response">' + escapeHtml(entry.response) + '</div>'
+          + '</div>';
+      });
+
+      html += '<button class="history-clear" onclick="clearHistory()">清除全部记录</button>';
+      list.innerHTML = html;
+    }
+
+    showScreen('screen4');
+  }
+
+  function clearHistory() {
+    if (confirm('确定要清除所有记录吗？')) {
+      localStorage.removeItem('catch_entries');
+      showHistory();
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Prevent pull-to-refresh on iOS
+  document.body.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 1) {
+      const scrollable = e.target.closest('.history-list, textarea');
+      if (!scrollable) e.preventDefault();
+    }
+  }, { passive: false });
+
+  // Focus on load
+  setTimeout(() => thoughtInput.focus(), 500);
+</script>
+</body>
+</html>

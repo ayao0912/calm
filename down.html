@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>降落程序</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @font-face {
+    font-family: 'SystemSans';
+    src: local('PingFang SC'), local('Microsoft YaHei'), local('Noto Sans SC'), local('sans-serif');
+  }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    transition: background 3s ease;
+  }
+
+  .container {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* --- Stars background --- */
+  .stars {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .star {
+    position: absolute;
+    width: 2px; height: 2px;
+    background: rgba(180, 190, 230, 0.4);
+    border-radius: 50%;
+    animation: twinkle var(--dur) ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.7; }
+  }
+
+  /* --- Screens --- */
+  .screen {
+    display: none;
+    text-align: center;
+    z-index: 1;
+    animation: fadeUp 1s ease;
+  }
+  .screen.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* --- Idle screen --- */
+  .idle-moon { font-size: 56px; margin-bottom: 20px; filter: grayscale(0.3); }
+  .idle-title {
+    font-size: 32px; font-weight: 200; letter-spacing: 6px;
+    margin-bottom: 14px;
+    color: var(--text);
+  }
+  .idle-desc {
+    font-size: 15px; line-height: 2; color: var(--sub);
+    margin-bottom: 48px;
+  }
+  .btn-start {
+    background: none;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 14px 48px;
+    font-size: 16px;
+    border-radius: 40px;
+    cursor: pointer;
+    letter-spacing: 6px;
+    transition: all 0.3s ease;
+    font-family: inherit;
+  }
+  .btn-start:hover { background: rgba(120, 130, 200, 0.15); }
+
+  /* --- Running screen (landscape layout) --- */
+  .running-layout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 80px;
+    max-width: 960px;
+    width: 90vw;
+  }
+
+  .running-left {
+    flex: 0 0 auto;
+    text-align: center;
+    min-width: 200px;
+  }
+
+  .running-right {
+    flex: 1;
+    text-align: left;
+    max-width: 480px;
+  }
+
+  .phase-label {
+    font-size: 11px; letter-spacing: 8px; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 10px;
+  }
+  .phase-name {
+    font-size: 26px; font-weight: 300; letter-spacing: 4px;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .phase-sub {
+    font-size: 13px; color: var(--sub); margin-bottom: 0;
+  }
+
+  .timer {
+    font-size: 64px; font-weight: 100;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 6px;
+    margin: 24px 0 8px;
+  }
+  .timer-hint {
+    font-size: 11px; color: var(--sub); opacity: 0.5;
+  }
+
+  .activity-card {
+    background: rgba(120, 130, 200, 0.06);
+    border: 1px solid rgba(120, 130, 200, 0.12);
+    border-radius: 16px;
+    padding: 36px 32px;
+  }
+  .activity-text {
+    font-size: 19px; line-height: 1.9; font-weight: 300;
+    color: var(--text);
+  }
+
+  /* Phase dots */
+  .phase-dots {
+    position: absolute;
+    top: 32px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 12px; align-items: center;
+    z-index: 2;
+  }
+  .dot {
+    height: 8px; border-radius: 4px;
+    transition: all 0.8s ease;
+  }
+  .dot.past { background: var(--accent); width: 8px; }
+  .dot.current { background: var(--accent); width: 28px; }
+  .dot.future { background: rgba(120, 130, 200, 0.2); width: 8px; }
+
+  /* Progress bar */
+  .progress-bar {
+    position: absolute;
+    top: 56px; left: 32px; right: 32px;
+    height: 1px;
+    background: rgba(120, 130, 200, 0.08);
+    z-index: 2;
+  }
+  .progress-fill {
+    height: 100%;
+    background: rgba(120, 130, 200, 0.25);
+    transition: width 1s linear;
+  }
+
+  /* Skip button */
+  .btn-skip {
+    position: absolute;
+    bottom: 32px; right: 48px;
+    background: none; border: none;
+    color: var(--sub); opacity: 0.35;
+    font-size: 12px; cursor: pointer;
+    letter-spacing: 3px;
+    font-family: inherit;
+    transition: opacity 0.3s;
+    z-index: 2;
+  }
+  .btn-skip:hover { opacity: 0.7; }
+
+  /* --- Done screen --- */
+  .done-dots { font-size: 20px; color: var(--sub); letter-spacing: 8px; margin-bottom: 24px; }
+  .done-title {
+    font-size: 26px; font-weight: 200; letter-spacing: 4px;
+    color: var(--text); margin-bottom: 14px;
+  }
+  .done-desc {
+    font-size: 14px; line-height: 2; color: var(--sub);
+    margin-bottom: 48px;
+  }
+  .btn-done {
+    background: none;
+    border: 1px solid rgba(120, 130, 200, 0.2);
+    color: var(--sub);
+    padding: 10px 28px;
+    font-size: 13px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s;
+  }
+  .btn-done:hover { border-color: rgba(120, 130, 200, 0.4); }
+
+  /* Transition */
+  .fade-out {
+    opacity: 0 !important;
+    transform: translateY(20px) !important;
+    transition: all 1.2s ease !important;
+  }
+</style>
+</head>
+<body>
+
+<!-- Stars -->
+<div class="stars" id="stars"></div>
+
+<div class="container" id="app">
+
+  <!-- Phase dots (hidden initially) -->
+  <div class="phase-dots" id="phaseDots" style="display:none">
+    <div class="dot" id="dot0"></div>
+    <div class="dot" id="dot1"></div>
+    <div class="dot" id="dot2"></div>
+    <div class="dot" id="dot3"></div>
+  </div>
+  <div class="progress-bar" id="progressBar" style="display:none">
+    <div class="progress-fill" id="progressFill"></div>
+  </div>
+
+  <!-- IDLE -->
+  <div class="screen active" id="screenIdle">
+    <div class="idle-moon">🌙</div>
+    <div class="idle-title">降落程序</div>
+    <div class="idle-desc">
+      接下来的一个小时<br>
+      你会从 100 慢慢降到 0<br>
+      每一步都不一样
+    </div>
+    <button class="btn-start" onclick="startLanding()">开始降落</button>
+  </div>
+
+  <!-- RUNNING -->
+  <div class="screen" id="screenRunning">
+    <div class="running-layout">
+      <div class="running-left" id="runningLeft">
+        <div class="phase-label" id="phaseLabel"></div>
+        <div class="phase-name" id="phaseName"></div>
+        <div class="phase-sub" id="phaseSub"></div>
+        <div class="timer" id="timer"></div>
+        <div class="timer-hint" id="timerHint"></div>
+      </div>
+      <div class="running-right" id="runningRight">
+        <div class="activity-card">
+          <div class="activity-text" id="activityText"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div class="screen" id="screenDone">
+    <div class="done-dots">· · ·</div>
+    <div class="done-title">你已经落地了</div>
+    <div class="done-desc">
+      今天到此为止。<br>
+      明晚会是不一样的路径。
+    </div>
+    <button class="btn-done" onclick="resetToIdle()">晚安</button>
+  </div>
+
+  <!-- Skip -->
+  <button class="btn-skip" id="btnSkip" style="display:none" onclick="skipPhase()">跳过这个阶段 →</button>
+</div>
+
+<script>
+// ========== DATA ==========
+const PHASES = [
+  {
+    name: "还在做事",
+    subtitle: "你没有浪费时间",
+    duration: 15 * 60,
+    activities: [
+      "整理一下桌面上的东西。不用全部，三样就好。",
+      "给明天的自己写一张便条，只写一件事。",
+      "删掉手机里五张不需要的照片。",
+      "把今天没回的一条消息回了。",
+      "倒一杯水。慢慢喝完它。",
+      "把充电线插好，把明天要带的东西放在门口。",
+      "打开备忘录，写下今天发生的一件小事。不需要有意义。",
+      "挑一首歌，发给一个你想到的人。不用解释为什么。",
+      "把浏览器的标签页关到只剩三个以内。",
+      "看看你的日历，确认明天第一件事是什么。然后关掉它。",
+      "找到一件今天穿过的衣服，把它挂好或叠好。",
+      "给自己明天的早餐做一个决定。不用准备，决定就好。",
+      "把今天学到的一个新东西用一句话记下来。",
+      "检查一下窗户关了没有。顺便看一眼外面。",
+      "把手机里的通知清到零。",
+      "列出明天绝对不做的一件事。",
+      "把一个你一直想扔但没扔的东西扔掉。",
+      "给今天打个分。不需要理由。1到10。",
+    ],
+  },
+  {
+    name: "看看就好",
+    subtitle: "不需要你产出什么",
+    duration: 15 * 60,
+    activities: [
+      "打开地图，随机放大一个你没去过的地方，看看街景。",
+      "翻翻手机相册，找到三个月前的今天附近。看看那时候在做什么。",
+      "搜「世界上最小的____」，填一个你好奇的词。看看结果。",
+      "打开你手边的书，翻到随便一页，读那一页就好。不用从头开始。",
+      "看一个你喜欢的城市的实时摄像头。",
+      "搜一道你从来没吃过的菜，看看长什么样。",
+      "找一张你觉得好看的画，不用懂，看着就好。",
+      "看看你的收藏夹，有没有什么是你存了但从没打开过的。打开一个。",
+      "搜你名字里某个字的字源。",
+      "翻翻购物app里你之前加购但没买的东西。感受一下现在还想不想要。",
+      "搜一张你出生那年的照片。看看那个世界。",
+      "看一个手工制作的过程视频。不用看完。",
+      "打开你一直想看但没看的那本书。只看前三页。三页就够了。",
+      "读一首短诗。不用理解它。让文字的形状留在你脑子里。",
+      "打开一篇很长的文章。不用读完。读到你走神为止。走神了就停。",
+      "找一本你小时候读过的书。看看还能不能找到电子版。翻几页。",
+      "看看豆瓣上评分最高的你没看过的书。读一下简介。",
+      "打开一个你完全不懂的领域的维基百科页面。像旅游一样读。",
+    ],
+  },
+  {
+    name: "只是感受",
+    subtitle: "交给身体",
+    duration: 15 * 60,
+    activities: [
+      "闭上眼睛，把手放在腹部。感受五次呼吸的起伏。",
+      "慢慢转动脖子，一圈花三十秒。两圈就好。",
+      "去摸一个你喜欢的质感——毛毯、木头、陶瓷杯。",
+      "用温水洗手。洗久一点。",
+      "躺下来，感受后背和床接触的面积。",
+      "听窗外的声音。数一数你能分辨出几种。",
+      "把灯调到最暗。等眼睛适应。",
+      "抱一个枕头。不需要理由。",
+      "慢慢张开五指，然后一根一根收回来。重复三次。",
+      "脱掉袜子。感受脚底接触地面的温度。",
+      "涂一点护手霜或者润肤露。慢慢地涂。",
+      "吸一口气，憋三秒，慢慢吐出去。做五次。",
+      "把脸埋进被子里三秒钟。",
+      "闭上眼，想象一个你觉得安全的地方。不需要是真实的。",
+      "转动脚踝。左三圈，右三圈。不急。",
+      "用手指慢慢梳一遍头发。",
+      "闭着眼睛，把注意力从头顶一直移到脚趾。经过每个部位，停一秒。",
+      "做三个最慢的深蹲。慢到你能感受膝盖的每一度弯曲。",
+    ],
+  },
+  {
+    name: "几乎什么都没有",
+    subtitle: "你已经在降落了",
+    duration: 15 * 60,
+    activities: [
+      "从二十开始倒数。每个数字之间隔一次呼吸。",
+      "想一个颜色。把它想得越具体越好。然后换一个。",
+      "你今天有没有一个瞬间觉得还不错？想一下就好。不用记住。",
+      "什么都不做。就躺着。这就是任务。",
+      "闭上眼。看看眼皮后面是什么颜色的。",
+      "想象自己是一艘船，正在靠岸。引擎已经关了。",
+      "感受一下你的体重正在把你压进床垫。这是地球在抱你。",
+      "慢慢地、一个字一个字地在心里说：我、今、天、做、够、了。",
+      "想一个人的脸。不用是重要的人，路过的也行。然后放开。",
+      "听自己的心跳。不用数。",
+      "假装你已经睡着了。看看能装多久。",
+      "想象你的念头是一条河。你坐在岸边看它流。你不需要跳进去。",
+      "什么时候睡着的？你不会知道。这就对了。",
+      "把注意力放在你身体最放松的那个部位。停在那里。",
+      "对自己说一声晚安。",
+      "你可以什么都不想。也可以什么都想。没有对错。",
+    ],
+  },
+];
+
+const PHASE_LABELS = ["一", "二", "三", "四"];
+
+const PHASE_COLORS = [
+  { bg: "#1a1a3e", accent: "#7c83c4", text: "#c8cbe0", sub: "#8b8fb5" },
+  { bg: "#141432", accent: "#5c6399", text: "#a8adc8", sub: "#6f7399" },
+  { bg: "#0f0f28", accent: "#3d4470", text: "#8890b0", sub: "#555a7a" },
+  { bg: "#0a0a1e", accent: "#2a2f55", text: "#606888", sub: "#3e4360" },
+];
+
+const IDLE_COLORS = { bg: "#12122a", accent: "#6670aa", text: "#b0b5d0", sub: "#707599" };
+
+// ========== STATE ==========
+let currentPhase = 0;
+let timeLeft = 0;
+let timerInterval = null;
+let dateSeed = getDateSeed();
+
+// ========== HELPERS ==========
+function getDateSeed() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function seededRandom(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function pickActivity(phaseIndex) {
+  const rng = seededRandom(dateSeed + phaseIndex * 137 + 42);
+  for (let i = 0; i < phaseIndex + 3; i++) rng();
+  const pool = PHASES[phaseIndex].activities;
+  return pool[Math.floor(rng() * pool.length)];
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+function applyColors(colors) {
+  const root = document.documentElement;
+  root.style.setProperty("--bg", colors.bg);
+  root.style.setProperty("--accent", colors.accent);
+  root.style.setProperty("--text", colors.text);
+  root.style.setProperty("--sub", colors.sub);
+  document.body.style.background = colors.bg;
+}
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  el.classList.remove("active");
+  // Force reflow for animation
+  void el.offsetWidth;
+  el.classList.add("active");
+}
+
+function updateDots() {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById("dot" + i);
+    dot.className = "dot " + (i < currentPhase ? "past" : i === currentPhase ? "current" : "future");
+  }
+}
+
+function updateProgress() {
+  const elapsed = currentPhase * 15 * 60 + (PHASES[currentPhase].duration - timeLeft);
+  const total = 60 * 60;
+  document.getElementById("progressFill").style.width = (elapsed / total * 100) + "%";
+}
+
+// ========== STARS ==========
+function createStars() {
+  const container = document.getElementById("stars");
+  for (let i = 0; i < 60; i++) {
+    const star = document.createElement("div");
+    star.className = "star";
+    star.style.left = Math.random() * 100 + "%";
+    star.style.top = Math.random() * 100 + "%";
+    star.style.setProperty("--dur", (3 + Math.random() * 5) + "s");
+    star.style.animationDelay = Math.random() * 5 + "s";
+    if (Math.random() > 0.7) {
+      star.style.width = "3px";
+      star.style.height = "3px";
+    }
+    container.appendChild(star);
+  }
+}
+
+// ========== ACTIONS ==========
+function startLanding() {
+  currentPhase = 0;
+  timeLeft = PHASES[0].duration;
+  dateSeed = getDateSeed();
+
+  showScreen("screenRunning");
+  document.getElementById("phaseDots").style.display = "flex";
+  document.getElementById("progressBar").style.display = "block";
+  document.getElementById("btnSkip").style.display = "block";
+
+  renderPhase();
+  startTimer();
+}
+
+function renderPhase() {
+  const phase = PHASES[currentPhase];
+  const colors = PHASE_COLORS[currentPhase];
+  applyColors(colors);
+
+  document.getElementById("phaseLabel").textContent = "第" + PHASE_LABELS[currentPhase] + "阶段";
+  document.getElementById("phaseName").textContent = phase.name;
+  document.getElementById("phaseSub").textContent = phase.subtitle;
+  document.getElementById("activityText").textContent = pickActivity(currentPhase);
+  document.getElementById("timerHint").textContent =
+    currentPhase < 3 ? "之后会进入下一阶段" : "最后一段路了";
+
+  updateDots();
+  updateTimer();
+}
+
+function updateTimer() {
+  document.getElementById("timer").textContent = formatTime(timeLeft);
+  updateProgress();
+}
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft <= 0) {
+      if (currentPhase < 3) {
+        transitionToNext();
+      } else {
+        finishLanding();
+      }
+    } else {
+      updateTimer();
+    }
+  }, 1000);
+}
+
+function transitionToNext() {
+  clearInterval(timerInterval);
+
+  // Fade out
+  const left = document.getElementById("runningLeft");
+  const right = document.getElementById("runningRight");
+  left.classList.add("fade-out");
+  right.classList.add("fade-out");
+
+  setTimeout(() => {
+    currentPhase++;
+    timeLeft = PHASES[currentPhase].duration;
+    renderPhase();
+
+    left.classList.remove("fade-out");
+    right.classList.remove("fade-out");
+    left.style.animation = "fadeUp 1s ease";
+    right.style.animation = "fadeUp 1s ease";
+    setTimeout(() => {
+      left.style.animation = "";
+      right.style.animation = "";
+    }, 1000);
+
+    startTimer();
+  }, 1200);
+}
+
+function skipPhase() {
+  if (currentPhase < 3) {
+    transitionToNext();
+  } else {
+    finishLanding();
+  }
+}
+
+function finishLanding() {
+  clearInterval(timerInterval);
+  applyColors(PHASE_COLORS[3]);
+  showScreen("screenDone");
+  document.getElementById("phaseDots").style.display = "none";
+  document.getElementById("progressBar").style.display = "none";
+  document.getElementById("btnSkip").style.display = "none";
+}
+
+function resetToIdle() {
+  applyColors(IDLE_COLORS);
+  showScreen("screenIdle");
+}
+
+// ========== INIT ==========
+applyColors(IDLE_COLORS);
+createStars();
+</script>
+</body>
+</html>

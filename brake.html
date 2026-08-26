@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>刹车</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    background: #0e0e1a;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .scene {
+    text-align: center;
+    max-width: 600px;
+    padding: 32px;
+    display: none;
+    animation: fadeIn 1.2s ease;
+  }
+  .scene.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .prompt {
+    font-size: 28px;
+    font-weight: 200;
+    color: #c0c4d8;
+    line-height: 1.8;
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+  }
+
+  .prompt-small {
+    font-size: 17px;
+    font-weight: 300;
+    color: #7a7f9a;
+    line-height: 2;
+    margin-bottom: 48px;
+  }
+
+  .prompt-large {
+    font-size: 42px;
+    font-weight: 100;
+    color: #d0d4e8;
+    letter-spacing: 6px;
+    margin-bottom: 48px;
+  }
+
+  .prompt-whisper {
+    font-size: 15px;
+    font-weight: 300;
+    color: #555a72;
+    line-height: 2.2;
+    margin-bottom: 48px;
+    letter-spacing: 1px;
+  }
+
+  .btn-next {
+    background: none;
+    border: 1px solid rgba(120, 130, 190, 0.25);
+    color: #7a7f9a;
+    padding: 12px 36px;
+    font-size: 14px;
+    border-radius: 28px;
+    cursor: pointer;
+    letter-spacing: 4px;
+    font-family: inherit;
+    transition: all 0.3s ease;
+  }
+  .btn-next:hover {
+    border-color: rgba(120, 130, 190, 0.5);
+    color: #a0a4ba;
+  }
+
+  /* Input scene */
+  .input-area {
+    margin-bottom: 40px;
+  }
+  .text-input {
+    background: rgba(120, 130, 190, 0.06);
+    border: 1px solid rgba(120, 130, 190, 0.15);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-size: 18px;
+    font-family: inherit;
+    color: #b0b4c8;
+    width: 100%;
+    max-width: 480px;
+    outline: none;
+    text-align: center;
+    letter-spacing: 1px;
+    font-weight: 300;
+    transition: border-color 0.3s;
+  }
+  .text-input:focus {
+    border-color: rgba(120, 130, 190, 0.35);
+  }
+  .text-input::placeholder {
+    color: #44485a;
+  }
+
+  /* Breathing */
+  .breath-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 1px solid rgba(120, 130, 190, 0.2);
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #6a6f88;
+    letter-spacing: 3px;
+  }
+  .breath-circle.inhale {
+    animation: breatheIn 4s ease-in-out forwards;
+  }
+  .breath-circle.exhale {
+    animation: breatheOut 6s ease-in-out forwards;
+  }
+  .breath-circle.hold {
+    animation: none;
+    transform: scale(1.35);
+    border-color: rgba(120, 130, 190, 0.35);
+  }
+
+  @keyframes breatheIn {
+    from { transform: scale(1); border-color: rgba(120,130,190,0.2); }
+    to { transform: scale(1.35); border-color: rgba(120,130,190,0.4); }
+  }
+  @keyframes breatheOut {
+    from { transform: scale(1.35); border-color: rgba(120,130,190,0.4); }
+    to { transform: scale(1); border-color: rgba(120,130,190,0.15); }
+  }
+
+  /* Counter */
+  .counter-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+  }
+  .counter-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(120, 130, 190, 0.15);
+    transition: background 0.5s ease;
+  }
+  .counter-dot.done {
+    background: rgba(120, 130, 190, 0.5);
+  }
+
+  /* Final */
+  .final-line {
+    font-size: 22px;
+    font-weight: 200;
+    color: #8a8fa8;
+    margin-bottom: 12px;
+    letter-spacing: 3px;
+    line-height: 2;
+  }
+</style>
+</head>
+<body>
+
+<!-- Scene 0: Entry -->
+<div class="scene active" id="s0">
+  <div class="prompt">你在转了，对吧。</div>
+  <button class="btn-next" onclick="goTo(1)">嗯</button>
+</div>
+
+<!-- Scene 1: Stop -->
+<div class="scene" id="s1">
+  <div class="prompt">先别想怎么解决。<br>什么都不用解决。<br><br>就在这里停一下。</div>
+  <button class="btn-next" onclick="goTo(2)">好</button>
+</div>
+
+<!-- Scene 2: Grounding - look around -->
+<div class="scene" id="s2">
+  <div class="prompt">看看你周围。</div>
+  <div class="prompt-small">说出你能看到的三样东西。<br>不用有意义。什么都行。</div>
+  <div class="input-area">
+    <input class="text-input" id="see1" placeholder="第一样" maxlength="30">
+  </div>
+  <div class="input-area">
+    <input class="text-input" id="see2" placeholder="第二样" maxlength="30">
+  </div>
+  <div class="input-area">
+    <input class="text-input" id="see3" placeholder="第三样" maxlength="30">
+  </div>
+  <button class="btn-next" onclick="goTo(3)">看到了</button>
+</div>
+
+<!-- Scene 3: Body -->
+<div class="scene" id="s3">
+  <div class="prompt">你的脚现在踩在什么上面？</div>
+  <div class="prompt-small">感受一下。凉的？暖的？硬的？软的？</div>
+  <button class="btn-next" onclick="goTo(4)">感受到了</button>
+</div>
+
+<!-- Scene 4: Breathe -->
+<div class="scene" id="s4">
+  <div class="prompt-small">跟着这个圆呼吸三次。<br>不用做好。跟着就行。</div>
+  <div class="breath-circle" id="breathCircle">
+    <span id="breathText">准备</span>
+  </div>
+  <div class="counter-row" id="breathDots">
+    <div class="counter-dot" id="bd0"></div>
+    <div class="counter-dot" id="bd1"></div>
+    <div class="counter-dot" id="bd2"></div>
+  </div>
+  <button class="btn-next" id="breathStart" onclick="startBreathing()">开始</button>
+  <button class="btn-next" id="breathNext" onclick="goTo(5)" style="display:none">好了</button>
+</div>
+
+<!-- Scene 5: The question -->
+<div class="scene" id="s5">
+  <div class="prompt">你现在，此刻——</div>
+  <div class="prompt-large" style="margin-top: 32px;">有没有在死？</div>
+  <button class="btn-next" onclick="goTo(6)">没有</button>
+</div>
+
+<!-- Scene 6: What's spinning -->
+<div class="scene" id="s6">
+  <div class="prompt">刚才在转的那个东西，<br>用一句话说出来。</div>
+  <div class="prompt-whisper">说出来它就变小了。</div>
+  <div class="input-area">
+    <input class="text-input" id="spinThing" placeholder="我在转的是……" maxlength="100">
+  </div>
+  <button class="btn-next" onclick="goTo(7)">说完了</button>
+</div>
+
+<!-- Scene 7: Shrink it -->
+<div class="scene" id="s7">
+  <div class="prompt" id="shrinkText"></div>
+  <div class="prompt-whisper" style="margin-top: 24px;">这件事是真的。<br>但它不是今晚的事。<br>也不是现在的事。<br><br>它只是一个念头路过了你。</div>
+  <button class="btn-next" onclick="goTo(8)">嗯</button>
+</div>
+
+<!-- Scene 8: Final -->
+<div class="scene" id="s8">
+  <div class="final-line">你还在。</div>
+  <div class="final-line">世界还在。</div>
+  <div class="final-line" style="margin-top: 20px; margin-bottom: 48px;">够了。</div>
+  <button class="btn-next" onclick="location.reload()" style="opacity: 0.4; font-size: 12px;">再来一次</button>
+</div>
+
+<script>
+function goTo(n) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById('s' + n);
+  // Force re-trigger animation
+  target.style.animation = 'none';
+  void target.offsetWidth;
+  target.style.animation = '';
+  target.classList.add('active');
+
+  // Special: scene 7 - show what they typed
+  if (n === 7) {
+    const thing = document.getElementById('spinThing').value.trim();
+    const display = thing || "那件事";
+    document.getElementById('shrinkText').innerHTML =
+      '「' + escapeHtml(display) + '」';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Breathing
+let breathCount = 0;
+function startBreathing() {
+  document.getElementById('breathStart').style.display = 'none';
+  breathCount = 0;
+  doBreathCycle();
+}
+
+function doBreathCycle() {
+  if (breathCount >= 3) {
+    document.getElementById('breathText').textContent = '好了';
+    document.getElementById('breathNext').style.display = '';
+    return;
+  }
+
+  const circle = document.getElementById('breathCircle');
+  const text = document.getElementById('breathText');
+
+  // Inhale 4s
+  circle.className = 'breath-circle inhale';
+  text.textContent = '吸';
+
+  setTimeout(() => {
+    // Hold 3s
+    circle.className = 'breath-circle hold';
+    text.textContent = '停';
+
+    setTimeout(() => {
+      // Exhale 6s
+      circle.className = 'breath-circle exhale';
+      text.textContent = '呼';
+
+      setTimeout(() => {
+        circle.className = 'breath-circle';
+        document.getElementById('bd' + breathCount).classList.add('done');
+        breathCount++;
+        if (breathCount < 3) {
+          setTimeout(doBreathCycle, 500);
+        } else {
+          text.textContent = '好了';
+          document.getElementById('breathNext').style.display = '';
+        }
+      }, 6000);
+    }, 3000);
+  }, 4000);
+}
+</script>
+</body>
+</html>

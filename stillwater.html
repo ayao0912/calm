@@ -1,0 +1,311 @@
+<title>止水</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200&display=swap">
+<style>
+:root {
+  --bg: #0b0d14;
+  --breath-fill: rgba(82, 112, 138, 0.10);
+  --breath-ring: rgba(82, 112, 138, 0.16);
+  --breath-shadow: rgba(82, 112, 138, 0.06);
+  --text-faint: rgba(195, 188, 175, 0.30);
+  --text-ghost: rgba(195, 188, 175, 0.10);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eae5db;
+    --breath-fill: rgba(65, 94, 114, 0.07);
+    --breath-ring: rgba(65, 94, 114, 0.13);
+    --breath-shadow: rgba(65, 94, 114, 0.04);
+    --text-faint: rgba(50, 46, 40, 0.22);
+    --text-ghost: rgba(50, 46, 40, 0.08);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #eae5db;
+  --breath-fill: rgba(65, 94, 114, 0.07);
+  --breath-ring: rgba(65, 94, 114, 0.13);
+  --breath-shadow: rgba(65, 94, 114, 0.04);
+  --text-faint: rgba(50, 46, 40, 0.22);
+  --text-ghost: rgba(50, 46, 40, 0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.breath {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 100px;
+  height: 100px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--breath-fill);
+  border: 1px solid var(--breath-ring);
+  box-shadow: 0 0 50px var(--breath-shadow), 0 0 100px var(--breath-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+  will-change: transform;
+}
+
+.breath-label {
+  font-size: 13px;
+  font-weight: 200;
+  letter-spacing: 0.5em;
+  padding-left: 0.5em;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+.breath-label.on { opacity: 1; }
+
+.clock {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  font-size: 12px;
+  font-weight: 200;
+  letter-spacing: 0.15em;
+  color: var(--text-ghost);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hidden-cursor { cursor: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .breath { display: none; }
+  canvas { opacity: 0.3; }
+}
+</style>
+
+<canvas id="c"></canvas>
+<div class="breath" id="breath">
+  <span class="breath-label" id="label"></span>
+</div>
+<div class="clock" id="clock"></div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const breathEl = document.getElementById('breath');
+  const labelEl = document.getElementById('label');
+  const clockEl = document.getElementById('clock');
+
+  function isDark() {
+    const dt = document.documentElement.getAttribute('data-theme');
+    if (dt === 'light') return false;
+    if (dt === 'dark') return true;
+    return !window.matchMedia('(prefers-color-scheme: light)').matches;
+  }
+
+  function palette() {
+    const d = isDark();
+    return {
+      water: d ? [82, 112, 138] : [65, 94, 114],
+      star:  d ? [195, 188, 175] : [50, 46, 40],
+      starA: d ? 0.07 : 0.045,
+      glowA: d ? 0.045 : 0.025,
+      ripA:  d ? 0.10 : 0.07,
+      vigA:  d ? 0.28 : 0.05,
+    };
+  }
+
+  let W, H, dpr;
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Breathing: 4s in, 1s hold, 5s out, 2s rest = 12s
+  const CYCLE = 12;
+  const PH = [
+    { ch: '吸', dur: 4, a: 0, b: 1 },
+    { ch: '',       dur: 1, a: 1, b: 1 },
+    { ch: '呼', dur: 5, a: 1, b: 0 },
+    { ch: '',       dur: 2, a: 0, b: 0 },
+  ];
+
+  function breath(t) {
+    const s = ((t * 0.001) % CYCLE + CYCLE) % CYCLE;
+    let e = 0;
+    for (const p of PH) {
+      if (s < e + p.dur) {
+        const r = (s - e) / p.dur;
+        const v = p.a + (p.b - p.a) * (0.5 - 0.5 * Math.cos(r * Math.PI));
+        return { v, ch: p.ch };
+      }
+      e += p.dur;
+    }
+    return { v: 0, ch: '' };
+  }
+
+  // Particles
+  const dots = [];
+  for (let i = 0; i < 55; i++) {
+    dots.push({
+      x: Math.random() * (W || 1200),
+      y: Math.random() * (H || 800),
+      vx: (Math.random() - 0.5) * 0.11,
+      vy: (Math.random() - 0.5) * 0.09,
+      r: Math.random() * 1.1 + 0.3,
+      a: Math.random() * 0.5 + 0.25,
+    });
+  }
+
+  // Ripples
+  const rings = [];
+
+  function ripple(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      rings.push({
+        x, y,
+        r: i * 6,
+        max: 80 + Math.random() * 60 + (n > 1 ? 40 : 0),
+        sp: 0.22 + Math.random() * 0.12 + i * 0.04,
+      });
+    }
+  }
+
+  function autoRipple() {
+    ripple(
+      W * 0.12 + Math.random() * W * 0.76,
+      H * 0.12 + Math.random() * H * 0.76,
+      1
+    );
+    setTimeout(autoRipple, 5500 + Math.random() * 9000);
+  }
+  setTimeout(autoRipple, 2500);
+
+  canvas.addEventListener('click', e => ripple(e.clientX, e.clientY, 2));
+  canvas.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    if (t) ripple(t.clientX, t.clientY, 2);
+  }, { passive: true });
+
+  // Cursor auto-hide
+  let cTimer;
+  function showCursor() {
+    document.body.classList.remove('hidden-cursor');
+    clearTimeout(cTimer);
+    cTimer = setTimeout(() => document.body.classList.add('hidden-cursor'), 3500);
+  }
+  document.addEventListener('mousemove', showCursor);
+  cTimer = setTimeout(() => document.body.classList.add('hidden-cursor'), 3500);
+
+  // Clock
+  function tick() {
+    const d = new Date();
+    clockEl.textContent =
+      String(d.getHours()).padStart(2, '0') + ':' +
+      String(d.getMinutes()).padStart(2, '0');
+  }
+  tick();
+  setInterval(tick, 15000);
+
+  // Draw
+  let t0 = null;
+
+  function draw(ts) {
+    if (!t0) t0 = ts;
+    const t = ts - t0;
+    const col = palette();
+    const [wr, wg, wb] = col.water;
+    const [sr, sg, sb] = col.star;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const b = breath(t);
+
+    // Central glow
+    const gr = 140 + b.v * 90;
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, gr);
+    g.addColorStop(0, `rgba(${wr},${wg},${wb},${(col.glowA + b.v * 0.035).toFixed(4)})`);
+    g.addColorStop(1, `rgba(${wr},${wg},${wb},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, gr, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Particles
+    for (const d of dots) {
+      d.x += d.vx;
+      d.y += d.vy;
+      if (d.x < -15) d.x += W + 30;
+      if (d.x > W + 15) d.x -= W + 30;
+      if (d.y < -15) d.y += H + 30;
+      if (d.y > H + 15) d.y -= H + 30;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${sr},${sg},${sb},${(d.a * col.starA).toFixed(4)})`;
+      ctx.fill();
+    }
+
+    // Ripples
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const rp = rings[i];
+      rp.r += rp.sp;
+      const p = rp.r / rp.max;
+      if (p >= 1) { rings.splice(i, 1); continue; }
+      const a = col.ripA * (1 - p) * (1 - p);
+      ctx.beginPath();
+      ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${wr},${wg},${wb},${a.toFixed(4)})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Vignette
+    const vm = Math.max(W, H) * 0.72;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.22, W / 2, H / 2, vm);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, `rgba(0,0,0,${col.vigA})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Breath circle
+    const sc = 1 + b.v * 0.65;
+    breathEl.style.transform = `translate(-50%,-50%) scale(${sc})`;
+
+    // Label
+    if (b.ch) {
+      labelEl.textContent = b.ch;
+      labelEl.classList.add('on');
+    } else {
+      labelEl.classList.remove('on');
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+})();
+</script>
